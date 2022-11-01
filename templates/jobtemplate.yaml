@@ -11,3 +11,5 @@ spec:
   job_template_playbook: playbooks/bucket.yaml
   job_template_project: k8s-demo
   tower_auth_secret: awx-secret
+  job_template_credentials:
+  - "aws"
