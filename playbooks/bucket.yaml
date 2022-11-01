@@ -11,7 +11,7 @@
       register: bucket
 
     - name: base64 encode
-      shell: echo "professor-wiggles" | base64"
+      shell: 'echo "professor-wiggles" | base64"'
       register: encoded 
 
     - name: create secret
