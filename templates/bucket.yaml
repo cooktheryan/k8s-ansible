@@ -1,0 +1,10 @@
+---
+- hosts: all
+  become: false
+  gather_facts: false
+  tasks:
+    - name: create bucket
+      amazon.aws.s3_bucket:
+        name: professor-wiggles 
+        state: present
+        region: us-east-1
