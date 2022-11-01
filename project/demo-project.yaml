@@ -2,10 +2,11 @@ apiVersion: tower.ansible.com/v1alpha1
 kind: AnsibleProject
 metadata:
   name: project
+  namespace: ansible-automation-platform
 spec:
   project_repo: https://github.com/cooktheryan/k8s-ansible.git
   project_branch: main
   project_name: k8s-demo
   project_organization: Default
   project_description: K8s demo project
-  tower_auth_secret: awx-access
+  tower_auth_secret: awx-secret

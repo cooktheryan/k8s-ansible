@@ -1,0 +1,13 @@
+apiVersion: tower.ansible.com/v1alpha1
+kind: JobTemplate
+metadata:
+  name: jobtemplate-4
+  namespace: ansible-automation-platform
+  labels:
+    app.kubernetes.io/instance: demotest
+spec:
+  job_template_inventory: Demo Inventory
+  job_template_name: s3-bucket-generation 
+  job_template_playbook: playbooks/bucket.yaml
+  job_template_project: k8s-demo
+  tower_auth_secret: awx-secret
