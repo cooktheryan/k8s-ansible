@@ -3,26 +3,26 @@
   become: false
   gather_facts: false
   tasks:
-    - name: create bucket
-      amazon.aws.s3_bucket:
-        name: professor-wiggles 
-        state: present
-        region: us-east-1
-      register: bucket
+  - name: create bucket
+    amazon.aws.s3_bucket:
+      name: professor-wiggles 
+      state: present
+      region: us-east-1
+    register: bucket
 
-    - name: base64 encode
-      shell: 'echo "professor-wiggles" | base64"'
-      register: encoded 
+  - name: encode
+    shell: 'echo "professor-wiggles" | base64'
+    register: encoded
 
-    - name: create secret
-      kubernetes.core.k8s:
-        state: present
-        definition:
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: ansible-created-secret
-            namespace: ansible-automation-platform
-          type: Opaque
-          data:
-            BUCKET_NAME: "{{ encoded.stdout }}"
+  - name: create secret
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: ansible-created-secret
+          namespace: ansible-automation-platform
+        type: Opaque
+        data:
+          BUCKET_NAME: "{{ encoded.stdout }}"
