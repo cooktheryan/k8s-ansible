@@ -1,0 +1,12 @@
+---
+# Create a mysql db
+# db_username and db_password vars are specified within AAP survey
+- name: Basic mysql provisioning example
+  community.aws.rds:
+    command: create
+    instance_name: "{{ db_name }}"
+    db_engine: "{{ db_engine }}"
+    size: "{{ db_size }}"
+    instance_type: "{{ db_instance_type }}"
+    username: "{{ db_username }}"
+    password: "{{ db_password }}"
