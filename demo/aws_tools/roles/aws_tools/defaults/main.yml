@@ -1,0 +1,10 @@
+---
+# defaults file for aws_tools
+
+bucket_name: "professor-wiggles"
+region: "us-east-1"
+instance_type: "t2.small"
+db_name: "mysql-db"
+db_engine: "MySQL"
+db_size: "10"
+db_instance_type: "t2.small"

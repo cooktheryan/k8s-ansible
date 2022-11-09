@@ -1,0 +1,6 @@
+---
+# tasks file for aws_tools
+- include_tasks: 10_create_s3_bucket.yml
+- include_tasks: 20_create_ec2.yml
+- include_tasks: 30_create_route53.yml
+- include_tasks: 40_create_rds.yml

@@ -1,0 +1,13 @@
+---
+
+- name: Creating AWS resources demo
+  hosts: localhost
+  become: false
+  gather_facts: false
+  collections:
+    - amazon.aws
+    - demo.aws_tools
+    - community.aws
+  roles:
+    - demo.aws_tools
+
