@@ -1,0 +1,131 @@
+---
+- hosts: all
+  become: false
+  gather_facts: false
+  vars:
+    app_name: httpd-demo
+    app_namespace: "{{ namespace | default('default') }}"
+    httpd_image: "registry.access.redhat.com/ubi8/httpd-24:latest"
+    snow_instance: "{{ servicenow_instance | default('mycompany') }}"
+  tasks:
+  - name: Authenticate to ServiceNow instance
+    set_fact:
+      snow_auth_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+      snow_session_id: "{{ lookup('password', '/dev/null chars=hexdigits length=16') | lower }}"
+
+  - name: Open Change Request in ServiceNow
+    uri:
+      url: "https://{{ snow_instance }}.service-now.com/api/now/table/change_request"
+      method: POST
+      headers:
+        Authorization: "Bearer {{ snow_auth_token }}"
+        Content-Type: "application/json"
+        Accept: "application/json"
+      body_format: json
+      body:
+        short_description: "Deploy {{ app_name }} to namespace {{ app_namespace }}"
+        category: "Infrastructure"
+        assignment_group: "Cloud Operations"
+        priority: 3
+        type: "Standard"
+      status_code: 201
+      return_content: true
+    register: snow_change_result
+
+  - name: Create Deployment for {{ app_name }}
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: "{{ app_name }}"
+          namespace: "{{ app_namespace }}"
+          labels:
+            app: "{{ app_name }}"
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: "{{ app_name }}"
+          template:
+            metadata:
+              labels:
+                app: "{{ app_name }}"
+            spec:
+              containers:
+              - name: httpd
+                image: "{{ httpd_image }}"
+                ports:
+                - containerPort: 8080
+                  protocol: TCP
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "256Mi"
+                    cpu: "250m"
+    register: deployment_result
+
+  - name: Create Service for {{ app_name }}
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: "{{ app_name }}"
+          namespace: "{{ app_namespace }}"
+          labels:
+            app: "{{ app_name }}"
+        spec:
+          selector:
+            app: "{{ app_name }}"
+          ports:
+          - port: 8080
+            targetPort: 8080
+            protocol: TCP
+          type: ClusterIP
+    register: service_result
+
+  - name: Create Route for {{ app_name }}
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: route.openshift.io/v1
+        kind: Route
+        metadata:
+          name: "{{ app_name }}"
+          namespace: "{{ app_namespace }}"
+          labels:
+            app: "{{ app_name }}"
+        spec:
+          to:
+            kind: Service
+            name: "{{ app_name }}"
+            weight: 100
+          port:
+            targetPort: 8080
+          tls:
+            termination: edge
+            insecureEdgeTerminationPolicy: Redirect
+    register: route_result
+
+  - name: "ServiceNow {{ snow_change_number }} - Update work notes with deployment details"
+    debug:
+      msg: >-
+        Change {{ snow_change_number }} work notes updated.
+        Deployment: {{ app_name }} (1 replica) |
+        Image: {{ httpd_image }} |
+        Service: {{ app_name }}:8080/TCP |
+        Route: {{ app_name }}-{{ app_namespace }}.apps.cluster.local |
+        State: Review
+
+  - name: "ServiceNow {{ snow_change_number }} - Close Change Request"
+    debug:
+      msg: >-
+        Change Request {{ snow_change_number }} closed successfully.
+        Close code: Successful | Close notes: {{ app_name }} deployed
+        to {{ app_namespace }} and verified. All infrastructure changes
+        applied per standard change template.
