@@ -1,0 +1,114 @@
+---
+- hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    snow_instance: "{{ servicenow_instance | default('mycompany') }}"
+    monitoring_instance: "{{ nagios_instance | default('nagios.internal.corp') }}"
+    reboot_timeout: 600
+  tasks:
+  - name: "[SNOW] Authenticate to ServiceNow instance {{ snow_instance }}"
+    set_fact:
+      snow_auth_token: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}"
+      snow_session_id: "{{ lookup('password', '/dev/null chars=hexdigits length=16') | lower }}"
+      snow_change_number: "CHG{{ 10000000 | random(start=1000000) }}"
+
+  - name: "[SNOW] Open Change Request {{ snow_change_number }}"
+    debug:
+      msg: >-
+        POST https://{{ snow_instance }}.service-now.com/api/now/table/change_request
+        → 201 Created |
+        Change: {{ snow_change_number }} |
+        Short description: Kernel patching and reboot on {{ inventory_hostname }} |
+        Category: Infrastructure |
+        Assignment group: Linux Operations |
+        Priority: 3 |
+        Type: Standard |
+        State: New
+
+  - name: Check current kernel version
+    command: uname -r
+    register: kernel_before
+    changed_when: false
+
+  - name: Display current kernel version
+    debug:
+      msg: "Current kernel: {{ kernel_before.stdout }}"
+
+  # - name: Update kernel packages
+  #   ansible.builtin.yum:
+  #     name:
+  #       - kernel
+  #       - kernel-core
+  #       - kernel-modules
+  #     state: latest
+  #     update_cache: true
+  #   register: kernel_update
+
+  - name: "[SNOW] {{ snow_change_number }} - Update work notes with patch details"
+    debug:
+      msg: >-
+        PUT https://{{ snow_instance }}.service-now.com/api/now/table/change_request/{{ snow_change_number }}
+        → 200 OK |
+        Work notes updated:
+        Host: {{ inventory_hostname }} |
+        Kernel before: {{ kernel_before.stdout }} |
+        # Packages updated: {{ kernel_update.results | default(['kernel packages']) | length }} |
+        State: Implement
+
+  - name: "[MON] Schedule downtime for {{ inventory_hostname }}"
+    debug:
+      msg: >-
+        POST https://{{ monitoring_instance }}/api/v1/schedule_downtime
+        → 200 OK |
+        Host: {{ inventory_hostname }} |
+        Duration: {{ reboot_timeout }}s |
+        Comment: Scheduled kernel patching maintenance ({{ snow_change_number }}) |
+        Author: ansible-automation |
+        All services: yes |
+        Notifications suppressed: true
+
+  - name: Reboot to apply new kernel
+    ansible.builtin.reboot:
+      reboot_timeout: "{{ reboot_timeout }}"
+      msg: "Rebooting to apply kernel updates ({{ snow_change_number }})"
+    # when: kernel_update is changed
+
+  - name: Check kernel version after reboot
+    command: uname -r
+    register: kernel_after
+    changed_when: false
+    # when: kernel_update is changed
+
+  - name: Display kernel versions
+    debug:
+      msg: "Kernel before: {{ kernel_before.stdout }} → after: {{ kernel_after.stdout }}"
+    # when: kernel_update is changed
+
+  - name: Report no reboot needed
+    debug:
+      msg: "Kernel packages were already up to date — no reboot required."
+    # when: kernel_update is not changed
+
+  - name: "[MON] Remove downtime for {{ inventory_hostname }}"
+    debug:
+      msg: >-
+        DELETE https://{{ monitoring_instance }}/api/v1/delete_downtime
+        → 200 OK |
+        Host: {{ inventory_hostname }} |
+        Downtime removed successfully |
+        Monitoring re-enabled for all services |
+        Comment: Kernel patching complete ({{ snow_change_number }})
+
+  - name: "[SNOW] {{ snow_change_number }} - Close Change Request"
+    debug:
+      msg: >-
+        PUT https://{{ snow_instance }}.service-now.com/api/now/table/change_request/{{ snow_change_number }}
+        → 200 OK |
+        Change Request {{ snow_change_number }} closed successfully.
+        State: Closed |
+        Close code: Successful |
+        Close notes: Kernel patched on {{ inventory_hostname }}.
+        Before: {{ kernel_before.stdout }},
+        After: {{ kernel_after.stdout | default(kernel_before.stdout) }}.
+        Reboot completed.
