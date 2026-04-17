@@ -1,0 +1,7 @@
+---
+- name: Create an S3 bucket
+  amazon.aws.s3_bucket:
+    name: "{{ bucket_name }}"
+    state: present
+    region: "{{ region }}"
+  register: bucket
